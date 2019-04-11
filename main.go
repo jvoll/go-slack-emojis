@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -82,53 +83,60 @@ type test struct {
 	Number int `json:"number"`
 }
 
-type SlackApiResponse struct {
-	OK      bool   `json:"ok"`
-	Channel string `json:"channel"`
-	// Message *Message `json:"message"`
-	// Reactions []Reaction `json:"reactions"`
+// Reaction { "name": "tada", "users": [ "UABN6TSR5" ], "count": 1 },
+type Reaction struct {
+	Name  string   `json:"name"`
+	Users []string `json:"users"`
+	Count int      `json:"count"`
 }
 
-func FetchEmojis() {
-	// (originally) Stolen from https://blog.alexellis.io/golang-json-api-client/
-	// url := "http://api.open-notify.org/astros.json"
-	url := "https://slack.com/api/reactions.get?token=xoxp-2322548031-380097601427-605976644912-eaf3c87c6e9ce58cc3615f46c7daffc8&channel=CHGG9F6BU&timestamp=1555014521.000700&pretty=1"
-	client := http.Client{
-		Timeout: time.Second * 2, // Maximum of 2 secs
-	}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+// Message hush
+type Message struct {
+	Reactions []Reaction `json:"reactions"`
+}
+
+// SlackAPIResponse it is what it is.
+type SlackAPIResponse struct {
+	OK      bool     `json:"ok"`
+	Channel string   `json:"channel"`
+	Message *Message `json:"message"`
+}
+
+func fetchEmojis() {
+	slackAPIUrl := "https://slack.com/api/"
+	reactionsPath := "reactions.get"
+
+	var sb strings.Builder
+	sb.WriteString(slackAPIUrl)
+	sb.WriteString(reactionsPath)
+	req, err := http.NewRequest(http.MethodGet, sb.String(), nil)
+	q := req.URL.Query() // Get a copy of the query values.
+	q.Add("token", "xoxp-2322548031-351754944855-609816995558-5ff5c130f4f57291c3ebe25da55751e9")
+	q.Add("channel", "CHGG9F6BU")
+	q.Add("timestamp", "1555014521.000700")
+	req.URL.RawQuery = q.Encode() // Encode and assign back to the original query.
+
 	if err != nil {
 		log.Fatalf("Failed to create request %v", err)
 	}
 
+	client := http.Client{
+		Timeout: time.Second * 2, // Maximum of 2 secs
+	}
 	res, getErr := client.Do(req)
 	if getErr != nil {
 		log.Fatalf("Failed to fetch emojis %v", getErr)
 	}
 
-	var slackMsg SlackApiResponse
+	var slackMsg SlackAPIResponse
 	err = json.NewDecoder(res.Body).Decode(&slackMsg)
 	if err != nil {
 		log.Fatalf("Failed to decode %v", err)
 	}
-	fmt.Println("Got this channel id back")
-	fmt.Println(slackMsg.Channel)
+	fmt.Println("Got these reactions back.")
+	fmt.Println(slackMsg.Message.Reactions)
 }
 
 func main() {
-	FetchEmojis()
-
-	people = append(people, Person{ID: "1", FirstName: "Jason", LastName: "Voll", Address: &Address{City: "Cambridge", State: "MA"}})
-	people = append(people, Person{ID: "2", FirstName: "Payal", LastName: "Batra", Address: &Address{City: "Cambridge", State: "MA"}})
-	people = append(people, Person{ID: "3", FirstName: "Dan", LastName: "Dexter"})
-
-	router := mux.NewRouter()
-	router.HandleFunc("/people", GetPeople).Methods("GET")
-	router.HandleFunc("/people/{id}", GetPerson).Methods("GET")
-	router.HandleFunc("/people/{id}", CreatePerson).Methods("POST")
-	router.HandleFunc("/people/{id}", DeletePerson).Methods("DELETE")
-
-	port := ":8000"
-	log.Printf("Listening on port %v", port)
-	log.Fatal(http.ListenAndServe(port, router))
+	fetchEmojis()
 }
