@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 )
@@ -49,6 +48,7 @@ func getToken() string {
 		panic(err)
 	}
 
+	token = token[:len(token)-1]
 	return string(token)
 }
 
